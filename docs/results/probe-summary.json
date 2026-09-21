@@ -1,0 +1,111 @@
+{
+  "scope": "unlabelled recorded-image diagnostic; no driving accuracy or closed-loop outcome measured",
+  "images": 27,
+  "source_groups": 9,
+  "caption_truncations": 0,
+  "caption_latency": {
+    "count": 27,
+    "p50_ms": 2727.8909534215927,
+    "p95_ms": 3895.2311371453106
+  },
+  "backends": {
+    "qwen_image": {
+      "attempts": 54,
+      "successes": 54,
+      "errors": 0,
+      "choice_counts": {
+        "observe": 52,
+        "continue": 2
+      },
+      "decision_latency": {
+        "count": 54,
+        "p50_ms": 267.0274032279849,
+        "p95_ms": 292.7192812319845
+      },
+      "attempt_latency_including_errors": {
+        "count": 54,
+        "p50_ms": 267.0274032279849,
+        "p95_ms": 292.7192812319845
+      },
+      "order_pairs": 27,
+      "order_changed_choice": 0,
+      "per_image_pipeline_latency": {
+        "count": 54,
+        "p50_ms": 275.12350445613265,
+        "p95_ms": 301.67068745940924
+      },
+      "median_candidate_probability_mass": 0.9994232058525085
+    },
+    "qwen_caption": {
+      "attempts": 54,
+      "successes": 54,
+      "errors": 0,
+      "choice_counts": {
+        "observe": 33,
+        "continue": 21
+      },
+      "decision_latency": {
+        "count": 54,
+        "p50_ms": 94.40430300310254,
+        "p95_ms": 109.59387361072004
+      },
+      "attempt_latency_including_errors": {
+        "count": 54,
+        "p50_ms": 94.40430300310254,
+        "p95_ms": 109.59387361072004
+      },
+      "order_pairs": 27,
+      "order_changed_choice": 3,
+      "per_image_pipeline_latency": {
+        "count": 54,
+        "p50_ms": 2848.3476364053786,
+        "p95_ms": 4057.255032705143
+      },
+      "median_candidate_probability_mass": 0.9995108842849731
+    },
+    "jev_caption": {
+      "attempts": 54,
+      "successes": 47,
+      "errors": 7,
+      "choice_counts": {
+        "observe": 4,
+        "continue": 43
+      },
+      "decision_latency": {
+        "count": 47,
+        "p50_ms": 773.8004999991972,
+        "p95_ms": 2066.9915500096977
+      },
+      "attempt_latency_including_errors": {
+        "count": 54,
+        "p50_ms": 892.7107000054093,
+        "p95_ms": 2366.32768500276
+      },
+      "order_pairs": 23,
+      "order_changed_choice": 0,
+      "per_image_pipeline_latency": {
+        "count": 47,
+        "p50_ms": 3965.554082300514,
+        "p95_ms": 5467.828198138156
+      }
+    }
+  },
+  "first_order_disagreement": {
+    "jev_caption__qwen_caption": {
+      "paired_count": 24,
+      "disagreements": 16
+    },
+    "jev_caption__qwen_image": {
+      "paired_count": 24,
+      "disagreements": 21
+    }
+  },
+  "jev_models": [
+    "jev-1.13.0"
+  ],
+  "jev_input_tokens": 27488,
+  "jev_estimated_usd": null,
+  "cost_note": "Input-token estimate using published $0.042/M; not a billing receipt; excludes GPU cost",
+  "timing_note": "Warm model. Single process. Jev includes client network time. Caption pipelines include one caption generation per frame. Two orderings are repeated diagnostics, not independent images. No camera transport, simulator stepping, or actuation time is measured.",
+  "vision_sha256": "94814eb76650ca52a484cae66d372ff289633c9e2de7952c448b2342a31a1978"
+}

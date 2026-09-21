@@ -1,65 +1,94 @@
-# JevDrive
+# Jev + Autonomous Driving
 
-**Semantic recovery and replanning decisions for autonomous-driving simulation.**
+**Structured semantic decisions for driving recovery and replanning.**
 
-Turn structured driving observations into bounded decisions: continue the current policy, request a fresh observation, switch to an available recovery behavior, or ask a planner to replan. Jev is the planned semantic decision backend; local code retains trajectory feasibility and vehicle control.
+[Research plan](docs/research-plan.md) · [Recorded-image experiments](experiments/README.md) · [First diagnostic results](docs/first-probe.md)
 
-**Status: design-stage project.** This repository currently contains the project specification and an illustrative observation contract. No Jev integration, simulator adapter, trained model, or measured driving improvement is released yet. Examples are authored fixtures, not recorded driving results.
+JevDrive tests where Jev can help an existing driving policy choose **continue, observe, replan, or defer**. A local controller and feasibility checks own vehicle execution. Jev receives structured text; a separate vision model processes camera images.
 
-## The first problem
+**Status: working research prototype.** The live Jev client, recorded-image comparison, response gate, and evaluation utilities are implemented. A 27-image GPU diagnostic has been run. CARLA/BeamNG closed-loop integration, outcome calibration, and driving-performance improvements are **not yet demonstrated**.
 
-A driving policy can keep repeating an unproductive action after an obstacle, terrain change, or loss of progress. The first experiment will ask whether a semantic supervisor can recognize these situations and select an appropriate next step without calling a large planner continuously.
+## First measured result
 
-The initial focus is off-road simulation: loss of progress, blocked routes, and requests to replan around an obstacle. The target demonstration is a paired replay of the same policy and disturbance, with and without the supervisor.
+On 27 recorded simulator images from 9 source groups, using Qwen2.5-VL-7B on one RTX 4090 and Jev 1.13.0:
 
-## Proposed architecture
+| Decision path | Successful attempts | Median decision stage | Median pipeline per image |
+| --- | ---: | ---: | ---: |
+| Qwen image → one-token choice scoring | 54 / 54 | 267 ms | 275 ms |
+| Qwen description → Qwen one-token choice scoring | 54 / 54 | 94 ms | 2,848 ms |
+| Qwen description → Jev | 47 / 54 | 774 ms | 3,966 ms |
 
-```text
-Sensors / simulator observations
-        -> perception and state history
-        -> code-computed features + available behavior candidates
-        -> Jev semantic decisions
-        -> local validity checks
-        -> existing driving policy / recovery behavior / replanner
+Each image has two candidate orderings. Caption generation is included in both caption pipelines. These workloads differ, and the timings do not establish equal task quality. Jev attempts included five HTTP 503 failures, one transport timeout, and one response rejected by validation. There are no outcome labels, so disagreement is **not** accuracy, and these numbers establish **no driving improvement**. See the [full protocol and limitations](docs/first-probe.md).
+
+This result directs the project toward occasional recovery decisions using reusable observations. It does not support replacing every-frame local decisions with a caption-to-cloud pipeline.
+
+## Architecture
+
+```mermaid
+flowchart LR
+    A[Camera and current state] --> B[Vision observations]
+    A --> C[Numerical facts and local feasibility]
+    B --> D[Semantic supervisor]
+    C --> D
+    D --> E[Observation age and candidate checks]
+    C --> E
+    E --> F[Existing policy or planner]
+    F --> G[Simulator outcomes]
+    G --> H[Held-out evaluation and calibration]
 ```
 
-- Perception produces structured observations. Jev currently accepts text, not raw camera frames.
-- Code computes elapsed time, distances, progress, collision checks, and other numerical features.
-- The semantic model selects among candidates supplied by the environment integration.
-- The vehicle controller owns steering, throttle, braking, and execution timing.
-- Missing observations, unavailable behaviors, stale responses, and service failures have explicit outcomes.
+The recorded-image probe implements the observation and decision comparison. The response gate can be used by an asynchronous host integration. Simulator execution and outcome learning remain research milestones.
 
-`examples/observation.json` describes the proposed input contract. It is not the TypeSafe HTTP request schema and does not invoke an API.
+## Run locally
 
-## First milestone
+Python 3.10 or newer; the core package has no third-party runtime dependencies.
 
-- [ ] A versioned observation/action contract and recorded scenario format.
-- [ ] One simulator adapter; BeamNG.tech is the first intended integration, subject to its external installation and license.
-- [ ] A rule supervisor and an unmodified-policy baseline.
-- [ ] A Jev adapter with model/version, latency, usage, and decision logging.
-- [ ] Three repeatable disturbances: blocked route, persistent loss of progress, and changed local route conditions.
-- [ ] An aligned comparison showing full elapsed time, including perception and API waits.
+```bash
+git clone https://github.com/Alpha-Harper-Franklin/jev-drive.git
+cd jev-drive
+python -m pip install -e .
+python -m unittest discover -s tests -v
+python -m jev_drive demo --scenario blocked_route --provider rules --output runs/contract-test.json
+```
 
-CARLA support is a later target, not an available feature. There is no real-vehicle deployment in this project.
+The demo is a deterministic 2D bicycle/A* **contract test** with exact range-limited geometry. It is not the research benchmark, a camera simulator, or evidence of real-time performance. Simulated time pauses during synchronous API calls.
 
-## Evaluation contract
+Set `TYPESAFE_API_KEY` securely in your environment, then test the API using an explicitly authored fixture:
 
-Compare the same policy and observation access under no supervisor, a rule supervisor, a VLM supervisor, and a Jev supervisor. Report route completion, collision counts, recovery success, unnecessary interventions, total elapsed time, p50/p95 decision latency, and all compute/API costs. Separate simulator-state experiments from camera-perception experiments. Split threshold tuning from final evaluation.
+```bash
+python -m jev_drive replay --input examples/caption-fixture.jsonl --output runs/api-fixture.jsonl
+```
 
-A confidence value is a model output statistic, not a certified collision probability or an end-to-end success rate. The project will report failures and unsuccessful recovery attempts alongside successes. No performance claims are available yet.
+For your own recorded RGB, follow the [GPU experiment instructions](experiments/README.md). The probe validates image hashes, records model hashes and versions, compares image and shared-text baselines, and preserves API failures. It loads models locally; caption replay sends task text and descriptions to TypeSafe.
+
+## What is implemented
+
+- Live, versioned Jev Choice client with response validation, finite socket timeouts, no hidden retries, and explicit errors.
+- Qwen2.5-VL image inference, caption extraction, shared-caption baselines, and candidate-order diagnostics.
+- Host-side gate rejecting stale observations, unavailable candidates, and local feasibility vetoes. This is a utility, not a simulator adapter or safety certificate.
+- Group-preserving partitions with duplicate-image checks, and Brier/reliability metrics requiring measured outcome labels.
+- Synthetic contract test with nominal and rule baselines, plus a separate Jev adapter.
+
+Jev confidence is not a collision probability. No threshold has been calibrated to driving outcomes. The synthetic adapter's confidence threshold is experimental. API failures are never silently replaced with successful rule-model results.
+
+## Research direction
+
+The target is recovery quality under matched computation, intervention, and observation budgets. Compare original-policy, periodic, numerical-rule, local-classifier, VLM, shared-text, and Jev supervisors. Count fallback control, expired responses, perception costs, and unsuccessful recoveries. Split by route/source; offline prediction scores cannot substitute for closed-loop evaluation.
+
+The [research plan](docs/research-plan.md) identifies overlap with AutoVLA, DriveVLM, SimLingo, and Bench2Drive-Robust. Two-system reasoning and latency robustness are established areas; this repository does not claim novelty from combining their names with Jev.
 
 ## 中文说明
 
-JevDrive 研究 Jev 能否帮助已有自动驾驶策略判断“继续、补充观察、调用已有恢复行为、重新规划”。首个方向是仿真中的越野脱困与路线受阻处理。当前只有项目设计与示例数据契约，尚未实现 Jev 接入、BeamNG/CARLA 适配或闭环实验。
+本项目研究 **Jev + 自动驾驶**，重点是已有策略遇到路线受阻、信息不足或恢复需求时，何时继续、补充观察、重规划或交回宿主处理。
 
-目标是用同一策略、同一场景和同一扰动做可复现对照。感知、几何计算、车辆控制与语义判断的职责分别记录；不会把离线判断准确率表述为真实驾驶能力。
+已实现真实 Jev API 接入、真实 RGB 的视觉推理与对照、过期响应检查、数据分组和指标工具。首轮完成 27 张录制图像的诊断实验，但尚无驾驶结果标签，也未完成 CARLA/BeamNG 闭环实验。首轮结果说明：生成视觉描述的成本不可忽略，不能把 Jev 接口便宜直接等同于整个驾驶系统更快。
 
-## Related work and sources
+欢迎贡献公开可复现的场景、独立仿真适配器和强基线。请附命令、版本、数据来源和失败记录；不要提交密钥、私有数据或未获授权的模型权重。
 
-- [TypeSafe model capabilities](https://docs.typesafe.ai/models)
-- [TypeSafe confidence](https://docs.typesafe.ai/confidence)
-- [Jev model limitations](https://docs.typesafe.ai/model-jaggedness/jev-1.13)
-- [jevpilot](https://github.com/standardagents/jevpilot): an existing Jev-powered browser driving simulator.
-- [BeamNGpy](https://github.com/BeamNG/BeamNGpy): an intended simulator interface.
+## Sources and license
 
-Independent community project; not affiliated with TypeSafe. The project code and documentation use the MIT license. External simulators and models keep their own licenses.
+- [TypeSafe API](https://docs.typesafe.ai/api), [models](https://docs.typesafe.ai/models), [confidence](https://docs.typesafe.ai/confidence), [known limitations](https://docs.typesafe.ai/model-jaggedness/jev-1.13)
+- [AutoVLA](https://github.com/ucla-mobility/AutoVLA), [SimLingo](https://github.com/RenzKa/simlingo), [Bench2Drive](https://github.com/Thinklab-SJTU/Bench2Drive), [Bench2Drive-Robust](https://github.com/Thinklab-SJTU/Bench2Drive-Robust)
+- [jevpilot](https://github.com/standardagents/jevpilot), an existing Jev driving demo
+
+Independent community project, not affiliated with TypeSafe. Repository code and documentation are MIT licensed. External models, simulators, and datasets retain their own licenses. Private diagnostic images are not redistributed.

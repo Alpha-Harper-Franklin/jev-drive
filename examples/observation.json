@@ -1,0 +1,23 @@
+{
+  "contract_version": "0.1-design",
+  "provenance": "authored illustrative fixture; not a simulator recording",
+  "task": "Reach the next off-road waypoint",
+  "observation_id": "illustrative-0001",
+  "observation_source": "structured_simulator_state",
+  "semantic_observations": {
+    "route_ahead": "blocked by a stationary obstacle",
+    "recent_execution": "the current behavior repeatedly approaches the same blocked segment"
+  },
+  "computed_features": {
+    "progress_window_seconds": 5.0,
+    "progress_in_window_meters": 0.1,
+    "vehicle_speed_mps": 0.0,
+    "local_controller_holding": true
+  },
+  "available_decisions": [
+    {"id": "continue", "description": "Continue the existing policy if the current conditions still support it"},
+    {"id": "observe", "description": "Request a fresh observation while the local controller holds"},
+    {"id": "replan", "description": "Ask the existing planner for a route around the obstruction"},
+    {"id": "defer", "description": "Return control to the host supervisor without selecting a new maneuver"}
+  ]
+}
